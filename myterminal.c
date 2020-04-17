@@ -3,10 +3,14 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <signal.h>
 #include <string.h>
 #define MAX_TOKENS_SIZE 1024
 #define COMMAND_DELIM 10
 #define MAX_PATH 256
+
+void cd(const char* dir);
+void reaper(int sig);
 
 int main ()
 {
@@ -20,6 +24,19 @@ int main ()
 	int* commandline_end;
 	int exit_terminal=0;
 	
+	struct sigaction act_CHLD;
+	struct sigaction oact_CHLD;
+	sigaction(SIGCHLD,NULL,&oact_CHLD);
+	act_CHLD.sa_handler=reaper;
+	sigemptyset(&act_CHLD.sa_mask);
+	act_CHLD.sa_flags = SA_NOCLDSTOP;
+	sigaction(SIGCHLD,&act_CHLD,NULL);
+	
+	struct sigaction act_INT;
+	struct sigaction oact_INT;
+	sigaction(SIGINT,NULL,&oact_INT);
+	act_INT.sa_handler=SIG_IGN;
+	sigaction(SIGINT,&act_INT,NULL);
 	 
 	tokens=(char **)malloc(MAX_TOKENS_SIZE*sizeof(char));
 	if (tokens==NULL)
@@ -163,6 +180,12 @@ int main ()
 			}
 			else	if (pid==0)
 			{
+				sigaction(SIGCHLD,&oact_CHLD,NULL);
+				
+				if (!background)
+				{
+					sigaction(SIGINT,&oact_INT,NULL);
+				}
 				
 				if (execvp(path_command, tokens+command_file) == -1) 
 				{
@@ -187,6 +210,28 @@ int main ()
 	return EXIT_SUCCESS;
 }
 
+void cd(const char* dir)
+{
+	if (dir==NULL)
+	{
+		printf("Error: there is no argument");
+	}
+	else
 
+	if (chdir(dir) != 0) 
+	{
+    perror("cd error:");
+	}
+	return;
+}
 
+void reaper (int sig)
+{
+	pid_t pid;
+	int stat;
+	
+	while((pid=waitpid(-1,&stat,WNOHANG))>0)
+	{}
+	return;
+}
 
