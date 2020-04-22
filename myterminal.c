@@ -11,9 +11,9 @@
 
 void cd(const char* dir);
 void reaper(int sig);
-
 int main ()
 {
+	
 	const char * delim =" \n";
 	char *buffer=NULL;
 	char ** tokens;
@@ -21,22 +21,28 @@ int main ()
 	size_t len=0;
 	char enter_error=0;
 	char path_command[MAX_PATH];
+	char temp[MAX_PATH];
+	char current_dir[MAX_PATH];
 	int* commandline_end;
 	int exit_terminal=0;
 	
 	struct sigaction act_CHLD;
-	struct sigaction oact_CHLD;
-	sigaction(SIGCHLD,NULL,&oact_CHLD);
 	act_CHLD.sa_handler=reaper;
 	sigemptyset(&act_CHLD.sa_mask);
-	act_CHLD.sa_flags = SA_NOCLDSTOP;
+	sigaddset(&act_CHLD.sa_mask, SIGCHLD);
+	act_CHLD.sa_flags = SA_NOCLDSTOP | SA_RESTART;
 	sigaction(SIGCHLD,&act_CHLD,NULL);
 	
 	struct sigaction act_INT;
 	struct sigaction oact_INT;
-	sigaction(SIGINT,NULL,&oact_INT);
+	memset(&act_INT, 0, sizeof(act_INT));
 	act_INT.sa_handler=SIG_IGN;
 	sigaction(SIGINT,&act_INT,NULL);
+	
+	
+	/*sigset_t child;
+	sigemptyset(&child);
+	sigaddset(&child,SIGCHLD);*/
 	 
 	tokens=(char **)malloc(MAX_TOKENS_SIZE*sizeof(char));
 	if (tokens==NULL)
@@ -55,14 +61,24 @@ int main ()
 	
 	do
 	{
+	
 		if (exit_terminal)
 			break;
-		printf("myterminal$\n");
+
+		getcwd(current_dir,MAX_PATH);
+		printf("myterminal:~%s$ ",current_dir);
+		//sigprocmask(SIG_BLOCK,&child,NULL);
 		getline (&buffer,&len,stdin);
+		//sigprocmask(SIG_UNBLOCK,&child,NULL);
 
 		if (buffer[0]=='\n')
 			continue;
-			
+		for (int i=0;buffer[i]!='\0';i++)
+		{
+			if (buffer[i]=='\n')
+				buffer[i]='\0';
+		}
+
 		int token_counter=0;
 		char*saveptr;
 		ptr_token=strtok_r(buffer,delim,&saveptr);
@@ -95,8 +111,8 @@ int main ()
 
 		}
 		
-
 		int commandend_counter=0;
+		int control_symbol=0;
 		
 		for (int i=0;i<token_counter;i++)
 		{
@@ -117,21 +133,28 @@ int main ()
 			}
 			if(tokens[i]==NULL|| strcmp(tokens[i],";")==0 || strcmp(tokens[i],"&")==0)
 			{
-
-					if(commandend_counter!=0 && tokens[i]!=NULL && commandline_end[commandend_counter-1]==i-1)
+					if(control_symbol || i==0)
 					{
 						printf("Syntax error!\n");
 						enter_error=1;
-						free(commandline_end);
 						break;	
 					}
 					
-					if(commandend_counter!=0 && tokens[i]==NULL && commandline_end[commandend_counter-1]==i-1)
+					if(tokens[i]==NULL && control_symbol)
 						break;	
-					
-						commandline_end[commandend_counter]=i;
-						commandend_counter++;
+				
+				commandline_end[commandend_counter]=i;
+				commandend_counter++;
+				control_symbol=1;	
 			}
+			else if (strpbrk(tokens[i],"&;")!=NULL)
+			{
+						printf("Syntax error!\n");
+						enter_error=1;
+						break;	
+			}
+			else
+				control_symbol=0;
 		}
 		
 		if (enter_error)
@@ -139,16 +162,14 @@ int main ()
 			enter_error=0;
 			continue;
 		}
-		printf("%d\n",commandend_counter);
 		for (int i=0,command_file=0;i<commandend_counter;i++)
 		{
 			int background=0;
 			pid_t pid;
 			char* ptr;
-			printf("%s\n",tokens[command_file]);
-			printf("%d\n",i);
 			if (tokens[commandline_end[i]]!=NULL && strcmp(tokens[commandline_end[i]],"&")==0)
 				background=1;
+
 				tokens[commandline_end[i]]=NULL;
 
 			if(strcmp(tokens[command_file],"exit")==0)
@@ -164,11 +185,12 @@ int main ()
 				command_file=commandline_end[i]+1;
 				continue;
 			}
+			
 			strcpy(path_command,tokens[command_file]);
-			printf("%s\n",path_command);
 			if ((ptr=strrchr(tokens[command_file],'/'))!=NULL)
 			{
-				strcpy(tokens[command_file],ptr+1);
+				strcpy(temp,ptr+1);
+				strcpy(tokens[command_file],temp);
 			}
 			
 			pid=fork();
@@ -180,7 +202,6 @@ int main ()
 			}
 			else	if (pid==0)
 			{
-				sigaction(SIGCHLD,&oact_CHLD,NULL);
 				
 				if (!background)
 				{
@@ -190,16 +211,17 @@ int main ()
 				if (execvp(path_command, tokens+command_file) == -1) 
 				{
       		perror("exec error:");
+      		printf("\n");
 					exit(EXIT_FAILURE);
     		}
 			}
 			else if (pid>0)
-			{
+			{	
 				if (!background)
 					waitpid(pid,(int*)0,0);
 			}
 			command_file=commandline_end[i]+1;
-		}	
+		}
 	}
 	while (1);
 	
@@ -214,13 +236,15 @@ void cd(const char* dir)
 {
 	if (dir==NULL)
 	{
-		printf("Error: there is no argument");
+		printf("Error: there is no argument\n");
+		
 	}
 	else
 
 	if (chdir(dir) != 0) 
 	{
     perror("cd error:");
+    printf("\n");
 	}
 	return;
 }
@@ -229,9 +253,10 @@ void reaper (int sig)
 {
 	pid_t pid;
 	int stat;
-	
 	while((pid=waitpid(-1,&stat,WNOHANG))>0)
 	{}
 	return;
 }
+
+
 
