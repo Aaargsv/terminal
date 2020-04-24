@@ -9,8 +9,8 @@
 #define COMMAND_DELIM 10
 #define MAX_PATH 256
 
-void cd(const char* dir);
-void reaper(int sig);
+void cd(const char* dir);//переход в другую директорию
+void reaper(int sig);//обработчик для удаления процессов-зомби
 int main ()
 {
 	
@@ -26,6 +26,7 @@ int main ()
 	int* commandline_end;
 	int exit_terminal=0;
 	
+	//связываем обработчики с сигналами
 	struct sigaction act_CHLD;
 	act_CHLD.sa_handler=reaper;
 	sigemptyset(&act_CHLD.sa_mask);
@@ -86,7 +87,7 @@ int main ()
 		token_counter++;
 		
 		int cycle_exit=0; 
-		while (1)
+		while (1)//разбиваем команду на лексемы
 		{
 			if ((ptr_token=strtok_r(NULL,delim,&saveptr))==NULL)
 				cycle_exit=1;
@@ -114,7 +115,7 @@ int main ()
 		int commandend_counter=0;
 		int control_symbol=0;
 		
-		for (int i=0;i<token_counter;i++)
+		for (int i=0;i<token_counter;i++)//поиск окончания команд
 		{
 			if (commandend_counter>=COMMAND_DELIM)
 			{
@@ -162,7 +163,7 @@ int main ()
 			enter_error=0;
 			continue;
 		}
-		for (int i=0,command_file=0;i<commandend_counter;i++)
+		for (int i=0,command_file=0;i<commandend_counter;i++)//выполнение команд
 		{
 			int background=0;
 			pid_t pid;
@@ -172,7 +173,7 @@ int main ()
 
 				tokens[commandline_end[i]]=NULL;
 
-			if(strcmp(tokens[command_file],"exit")==0)
+			if(strcmp(tokens[command_file],"exit")==0)//выход из терминала
 			{
 				exit_terminal=1;
 				break;	
@@ -193,7 +194,7 @@ int main ()
 				strcpy(tokens[command_file],temp);
 			}
 			
-			pid=fork();
+			pid=fork();//создание нового процесса
 			
 			if (pid<0)
 			{
@@ -249,7 +250,7 @@ void cd(const char* dir)
 	return;
 }
 
-void reaper (int sig)
+void reaper (int sig)//обработчик для удаления процессов-зомби
 {
 	pid_t pid;
 	int stat;
