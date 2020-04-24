@@ -133,7 +133,7 @@ int main ()
 			}
 			if(tokens[i]==NULL|| strcmp(tokens[i],";")==0 || strcmp(tokens[i],"&")==0)
 			{
-					if(control_symbol || i==0)
+					if((control_symbol || i==0) && tokens[i]!=NULL )
 					{
 						printf("Syntax error!\n");
 						enter_error=1;
